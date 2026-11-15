@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#090d16">
+<title>Turbo Drift - Course Arcade Rétro</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden}
+body{background:#090d16;color:#f8fafc;font-family:'Rajdhani',sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
+h1,h2,.font-arcade{font-family:'Orbitron',sans-serif}
+.glow-orange{text-shadow:0 0 8px rgba(249,115,22,.8),0 0 20px rgba(234,88,12,.5)}
+.glow-cyan{text-shadow:0 0 8px rgba(6,182,212,.8),0 0 18px rgba(6,182,212,.5)}
+.road-frame{box-shadow:0 0 30px rgba(0,0,0,.8),0 0 15px rgba(249,115,22,.25);border-left:3px solid #334155;border-right:3px solid #334155}
+.btn-start{background:linear-gradient(135deg,#f97316 0%,#dc2626 100%);border:2px solid #fdba74;box-shadow:0 4px 20px rgba(249,115,22,.5);transition:transform .15s ease}
+.btn-start:active{transform:scale(.96)}
+.car-option{transition:all .2s ease;border:2px solid #1e293b}
+.car-option.selected{border-color:#f97316;background:rgba(249,115,22,.15);transform:translateY(-2px);box-shadow:0 0 15px rgba(249,115,22,.4)}
+.touch-btn,.touch-nitro{background:rgba(15,23,42,.88);border:2px solid rgba(148,163,184,.5);backdrop-filter:blur(4px);touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+.touch-nitro{background:rgba(8,145,178,.25);border-color:rgba(6,182,212,.7)}
+.touch-btn.pressed{background:rgba(249,115,22,.45);border-color:#f97316;transform:scale(.96)}
+.touch-nitro.pressed{background:rgba(6,182,212,.5);border-color:#22d3ee;transform:scale(.96)}
+#app{height:100dvh;min-height:0;width:100vw;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding: max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));gap:6px}
+#hud{width:100%;max-width:720px;flex:none;background:rgba(15,23,42,.96);border:1px solid #1e293b;border-radius:12px;padding:7px 10px;z-index:5}
+#game-area{position:relative;flex:1;min-height:0;width:100%;max-width:720px;overflow:hidden;border-radius:12px;background:#0f172a}
+#gameCanvas{display:block;width:100%;height:100%;touch-action:none}
+#footer{width:100%;max-width:720px;flex:none;z-index:5}
+#touch-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;height:clamp(58px,10vh,84px)}
+#touch-controls button{min-width:0;border-radius:12px;font-weight:700}
+#keyboard-help{display:none}
+.overlay{position:absolute;inset:0;background:rgba(2,6,23,.91);backdrop-filter:blur(5px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:clamp(10px,3vw,24px);z-index:4;overflow:auto}
+.overlay.hidden{display:none}
+@media (pointer:fine) and (min-width:900px){#touch-controls{display:none}#keyboard-help{display:flex}}
+@media (max-height:520px){
+ #app{gap:4px;padding-top:4px;padding-bottom:4px}
+ #hud{padding:4px 8px}
+ #hud .topline{margin-bottom:3px}
+ #touch-controls{height:52px}
+ #start-content{gap:5px}
+ #start-content .bonus{margin-bottom:6px}
+ #start-content .cars{margin-bottom:7px}
+ #start-content .intro{margin-bottom:6px}
+}
+@media (orientation:landscape) and (max-height:500px){
+ #hud{max-width:620px}
+ #game-area{max-width:620px}
+ #footer{max-width:620px}
+ #touch-controls{height:48px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+ <header id="hud">
+  <div class="topline flex items-center justify-between mb-2">
+   <div class="flex items-center gap-2"><span class="text-xl">🏎️</span><h1 class="text-lg sm:text-2xl font-black tracking-wider text-orange-500 glow-orange">TURBO DRIFT</h1></div>
+   <div class="flex items-center gap-3 sm:gap-5">
+    <div class="text-right"><span class="text-[10px] uppercase text-slate-400 block leading-none">Score</span><span id="hud-score" class="text-base sm:text-xl font-arcade font-bold">0</span></div>
+    <div class="h-6 w-px bg-slate-700"></div>
+    <div class="text-right"><span class="text-[10px] uppercase text-amber-400 block leading-none">Record</span><span id="hud-highscore" class="text-base sm:text-xl font-arcade font-bold text-amber-300">0</span></div>
+    <button id="btn-mute" class="p-2 rounded-lg bg-slate-800 border border-slate-700" aria-label="Activer ou couper le son"><span id="mute-icon">🔊</span></button>
+   </div>
+  </div>
+  <div class="grid grid-cols-3 gap-2 items-center pt-1 border-t border-slate-800">
+   <div><div class="flex justify-between text-[10px] uppercase mb-1"><span>Blindage</span><span id="hud-hp-text" class="text-emerald-400">100%</span></div><div class="h-2.5 bg-slate-800 rounded-full overflow-hidden"><div id="hud-hp-bar" class="h-full bg-gradient-to-r from-emerald-500 to-lime-400" style="width:100%"></div></div></div>
+   <div><div class="flex justify-between text-[10px] uppercase mb-1"><span class="text-cyan-400">Nitro</span><span id="hud-nitro-text" class="text-cyan-300">100%</span></div><div class="h-2.5 bg-slate-800 rounded-full overflow-hidden"><div id="hud-nitro-bar" class="h-full bg-gradient-to-r from-blue-500 to-cyan-300" style="width:100%"></div></div></div>
+   <div class="flex justify-end gap-3 text-right"><div><span id="hud-speed" class="text-sm sm:text-lg font-arcade font-black text-orange-400">0</span><span class="text-[10px] text-slate-400 block leading-none">KM/H</span></div><div><span id="hud-dist" class="text-sm sm:text-lg font-arcade font-bold">0.0</span><span class="text-[10px] text-slate-400 block leading-none">KM</span></div></div>
+  </div>
+ </header>
+
+ <main id="game-area" class="road-frame">
+  <canvas id="gameCanvas"></canvas>
+  <section id="screen-start" class="overlay">
+   <div id="start-content" class="w-full flex flex-col items-center">
+    <div class="px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-400 text-xs font-bold tracking-widest uppercase mb-2">Autoroute sans limite</div>
+    <h2 class="text-2xl sm:text-4xl font-black text-white mb-2">PRÊT À <span class="text-orange-500 glow-orange">DRIFTER</span> ?</h2>
+    <p class="intro text-slate-400 text-xs sm:text-sm max-w-md mb-3">Slalomez dans le trafic, frôlez les véhicules pour recharger votre <b class="text-cyan-400">Nitro</b> et collectez les bonus !</p>
+    <div class="cars w-full max-w-md mb-3">
+     <p class="text-xs uppercase tracking-widest text-slate-300 font-bold mb-2">Choisissez votre bolide</p>
+     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <button class="car-option selected p-2 rounded-xl bg-slate-900 flex flex-col items-center gap-1" data-car="ferrari"><span class="w-6 h-9 rounded bg-red-600 border-2 border-red-300"></span><span class="text-xs font-bold">Rouge Ferrari</span></button>
+      <button class="car-option p-2 rounded-xl bg-slate-900 flex flex-col items-center gap-1" data-car="electric"><span class="w-6 h-9 rounded bg-cyan-500 border-2 border-cyan-200"></span><span class="text-xs font-bold">Bleu électrique</span></button>
+      <button class="car-option p-2 rounded-xl bg-slate-900 flex flex-col items-center gap-1" data-car="taxi"><span class="w-6 h-9 rounded bg-amber-400 border-2 border-amber-100"></span><span class="text-xs font-bold">Jaune taxi</span></button>
+      <button class="car-option p-2 rounded-xl bg-slate-900 flex flex-col items-center gap-1" data-car="stealth"><span class="w-6 h-9 rounded bg-zinc-800 border-2 border-orange-500"></span><span class="text-xs font-bold">Noir mat</span></button>
+     </div>
+    </div>
+    <div class="bonus flex flex-wrap justify-center gap-2 sm:gap-4 text-xs text-slate-300 bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 mb-4"><span>⚡ Frôlement : +Nitro</span><span>🛢️ Bidon : +Nitro</span><span>🪙 Pièce : +150 pts</span><span>🔧 Clé : +Blindage</span></div>
+    <button id="btn-start" class="btn-start font-arcade font-black text-sm sm:text-lg text-white px-7 py-3 rounded-xl tracking-wider">LANCER LA COURSE</button>
+    <p class="text-slate-500 text-[10px] mt-2">Sur tablette : utilisez les quatre boutons en bas de l'écran.</p>
+   </div>
+  </section>
+
+  <section id="screen-gameover" class="overlay hidden">
+   <h2 class="text-2xl sm:text-4xl font-black text-red-500 glow-orange mb-2">CARAMBOLAGE !</h2>
+   <p id="badge-new-record" class="hidden mb-2 px-3 py-1 rounded-full bg-amber-400/20 border border-amber-400 text-amber-300 font-bold text-xs">🏆 NOUVEAU RECORD ! 🏆</p>
+   <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 mb-4 w-full max-w-sm space-y-2">
+    <div class="flex justify-between border-b border-slate-800 pb-2"><span class="text-slate-400 text-xs uppercase">Score final</span><b id="stat-score" class="font-arcade text-orange-400">0</b></div>
+    <div class="flex justify-between border-b border-slate-800 pb-2"><span class="text-slate-400 text-xs uppercase">Distance</span><b id="stat-dist" class="font-arcade">0.0 km</b></div>
+    <div class="flex justify-between border-b border-slate-800 pb-2"><span class="text-slate-400 text-xs uppercase">Frôlements</span><b id="stat-nearmiss" class="font-arcade text-cyan-400">0</b></div>
+    <div class="flex justify-between"><span class="text-slate-400 text-xs uppercase">Meilleur score</span><b id="stat-highscore" class="font-arcade text-amber-400">0</b></div>
+   </div>
+   <div class="flex gap-3"><button id="btn-restart" class="btn-start font-arcade font-bold text-sm text-white px-6 py-3 rounded-xl">REJOUER</button><button id="btn-garage" class="px-4 py-3 rounded-xl bg-slate-800 border border-slate-600 font-arcade font-bold text-xs">GARAGE</button></div>
+  </section>
+ </main>
+
+ <footer id="footer">
+  <div id="touch-controls">
+   <button id="touch-left" class="touch-btn text-2xl text-white" aria-label="Gauche">◀</button>
+   <button id="touch-right" class="touch-btn text-2xl text-white" aria-label="Droite">▶</button>
+   <button id="touch-brake" class="touch-btn flex flex-col items-center justify-center text-xs text-red-300"><span class="text-base">▼</span>FREIN</button>
+   <button id="touch-nitro" class="touch-nitro flex flex-col items-center justify-center text-xs text-cyan-300"><span class="text-base">🔥</span>NITRO</button>
+  </div>
+  <div id="keyboard-help" class="items-center justify-between text-xs text-slate-400 px-2 py-1"><span>Direction : ← → ou Q / D</span><span>Nitro : ↑ / Z &nbsp;|&nbsp; Frein : ↓ / S</span></div>
+ </footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const canvas = $('gameCanvas'), ctx = canvas.getContext('2d');
+const COLORS = {ferrari:'#dc2626',electric:'#06b6d4',taxi:'#fbbf24',stealth:'#27272a'};
+let W=0,H=0,dpr=1, state='start', selectedCar='ferrari';
+let score=0, highscore=Number(localStorage.getItem('turboDriftRecord')||0), distance=0, nearMiss=0;
+let hp=100,nitro=100,speed=0, roadOffset=0, spawnTimer=0, pickupTimer=0, lastTime=0, muted=true, audioCtx=null;
+let player={x:0,y:0,w:36,h:66,tilt:0}, traffic=[], pickups=[], particles=[];
+const keys={left:false,right:false,brake:false,nitro:false};
+const pointers=new Map();
+$('hud-highscore').textContent=highscore;
+function resize(){
+ const r=$('game-area').getBoundingClientRect(); dpr=Math.min(window.devicePixelRatio||1,2);
+ W=Math.max(1,r.width); H=Math.max(1,r.height);
+ canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ player.w=Math.max(27,Math.min(44,W*.075)); player.h=player.w*1.78;
+ player.y=H-player.h-18; if(!player.x)player.x=W/2;
+ player.x=Math.max(roadLeft()+player.w/2,Math.min(roadRight()-player.w/2,player.x));
+ draw();
+}
+function roadWidth(){return Math.min(W*.84,500)}
+function roadLeft(){return (W-roadWidth())/2}
+function roadRight(){return roadLeft()+roadWidth()}
+function laneWidth(){return roadWidth()/4}
+function rand(a,b){return a+Math.random()*(b-a)}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.roundRect(x,y,w,h,r);c.fill()}
+function drawCar(x,y,w,h,color,isPlayer=false){
+ ctx.save();ctx.translate(x,y);
+ if(isPlayer)ctx.rotate(player.tilt*.08);
+ // ombre et carrosserie
+ ctx.fillStyle='rgba(0,0,0,.45)';roundRect(ctx,-w*.48+3,-h*.46+5,w*.96,h*.94,w*.18);
+ ctx.fillStyle=color;roundRect(ctx,-w/2,-h/2,w,h,w*.18);
+ ctx.fillStyle='rgba(255,255,255,.22)';roundRect(ctx,-w*.34,-h*.38,w*.68,h*.23,w*.12);
+ ctx.fillStyle='#0f172a';roundRect(ctx,-w*.34,-h*.12,w*.68,h*.28,w*.08);
+ ctx.fillStyle='#111827';roundRect(ctx,-w*.58,-h*.31,w*.16,h*.25,3);roundRect(ctx,w*.42,-h*.31,w*.16,h*.25,3);
+ roundRect(ctx,-w*.58,h*.12,w*.16,h*.25,3);roundRect(ctx,w*.42,h*.12,w*.16,h*.25,3);
+ ctx.fillStyle=isPlayer?'#fef08a':'#fca5a5';roundRect(ctx,-w*.34,-h*.48,w*.2,4,2);roundRect(ctx,w*.14,-h*.48,w*.2,4,2);
+ ctx.restore();
+}
+function drawRoad(){
+ ctx.fillStyle='#101827';ctx.fillRect(0,0,W,H);
+ // bas-côtés
+ ctx.fillStyle='#17251f';ctx.fillRect(0,0,roadLeft(),H);ctx.fillRect(roadRight(),0,W-roadRight(),H);
+ const left=roadLeft(),rw=roadWidth();
+ ctx.fillStyle='#303846';ctx.fillRect(left,0,rw,H);
+ ctx.fillStyle='#64748b';ctx.fillRect(left,0,5,H);ctx.fillRect(left+rw-5,0,5,H);
+ // bordures rouges et blanches animées
+ const seg=34, off=roadOffset% (seg*2);
+ for(let y=-seg*2+off;y<H+seg;y+=seg*2){
+  ctx.fillStyle='#f8fafc';ctx.fillRect(left+6,y,5,seg);ctx.fillRect(left+rw-11,y,5,seg);
+  ctx.fillStyle='#dc2626';ctx.fillRect(left+6,y+seg,5,seg);ctx.fillRect(left+rw-11,y+seg,5,seg);
+ }
+ // lignes de voies
+ ctx.strokeStyle='rgba(226,232,240,.55)';ctx.lineWidth=2;ctx.setLineDash([25,22]);ctx.lineDashOffset=-roadOffset;
+ for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(left+laneWidth()*i,0);ctx.lineTo(left+laneWidth()*i,H);ctx.stroke()}
+ ctx.setLineDash([]);
+ // décor latéral
+ for(let y=-30+(roadOffset%100);y<H+50;y+=100){
+  ctx.fillStyle='#365b3d';ctx.beginPath();ctx.arc(left-18,y,7,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(left+rw+18,y+35,8,0,Math.PI*2);ctx.fill();
+ }
+}
+function draw(){
+ if(!ctx||!W||!H)return;
+ drawRoad();
+ for(const p of pickups){ctx.save();ctx.translate(p.x,p.y);ctx.fillStyle=p.type==='coin'?'#facc15':p.type==='nitro'?'#06b6d4':'#a3e635';ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=12;ctx.beginPath();ctx.arc(0,0,10,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#111827';ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.type==='coin'?'€':p.type==='nitro'?'N':'+',0,1);ctx.restore()}
+ for(const car of traffic)drawCar(car.x,car.y,player.w*.92,player.h*.94,car.color,false);
+ for(const p of particles){ctx.fillStyle=p.color;ctx.globalAlpha=Math.max(0,p.life);ctx.fillRect(p.x,p.y,4,4);ctx.globalAlpha=1}
+ if(state==='playing')drawCar(player.x,player.y,player.w,player.h,COLORS[selectedCar],true);
+}
+function updateHud(){
+ $('hud-score').textContent=Math.floor(score).toLocaleString('fr-FR');
+ $('hud-highscore').textContent=highscore.toLocaleString('fr-FR');
+ $('hud-hp-text').textContent=Math.ceil(hp)+'%';$('hud-hp-bar').style.width=hp+'%';
+ $('hud-nitro-text').textContent=Math.ceil(nitro)+'%';$('hud-nitro-bar').style.width=nitro+'%';
+ $('hud-speed').textContent=Math.round(speed*1.8);$('hud-dist').textContent=distance.toFixed(1);
+}
+function spawnTraffic(){
+ const lane=Math.floor(Math.random()*4), x=roadLeft()+laneWidth()*(lane+.5);
+ const colors=['#e2e8f0','#2563eb','#eab308','#16a34a','#9333ea','#f97316'];
+ traffic.push({x,y:-player.h,color:colors[Math.floor(Math.random()*colors.length)],passed:false});
+}
+function spawnPickup(){
+ const lane=Math.floor(Math.random()*4);
+ const types=['coin','coin','nitro','repair'];
+ pickups.push({x:roadLeft()+laneWidth()*(lane+.5),y:-20,type:types[Math.floor(Math.random()*types.length)]});
+}
+function burst(x,y,color){
+ for(let i=0;i<12;i++)particles.push({x,y,vx:rand(-2,2),vy:rand(-3,1),life:1,color});
+}
+function endGame(){
+ state='over';keys.left=keys.right=keys.brake=keys.nitro=false;releaseAll();
+ const final=Math.floor(score),isRecord=final>highscore;
+ if(isRecord){highscore=final;localStorage.setItem('turboDriftRecord',String(highscore))}
+ $('stat-score').textContent=final.toLocaleString('fr-FR');$('stat-dist').textContent=distance.toFixed(1)+' km';$('stat-nearmiss').textContent=nearMiss;$('stat-highscore').textContent=highscore.toLocaleString('fr-FR');
+ $('badge-new-record').classList.toggle('hidden',!isRecord);$('screen-gameover').classList.remove('hidden');updateHud();
+}
+function startGame(){
+ score=0;distance=0;nearMiss=0;hp=100;nitro=100;speed=0;roadOffset=0;spawnTimer=.4;pickupTimer=2;traffic=[];pickups=[];particles=[];
+ player.x=W/2;player.y=H-player.h-18;player.tilt=0;
+ $('screen-start').classList.add('hidden');$('screen-gameover').classList.add('hidden');
+ state='playing';lastTime=performance.now();unlockAudio();updateHud();
+}
+function update(dt){
+ if(state!=='playing')return;
+ const nitroOn=keys.nitro&&nitro>0;
+ const target=keys.brake?2.5:nitroOn?9.5:6.4;
+ speed+=(target-speed)*Math.min(1,dt*2.5);
+ if(nitroOn)nitro=Math.max(0,nitro-32*dt);else nitro=Math.min(100,nitro+3.5*dt);
+ const move=(keys.right?1:0)-(keys.left?1:0);
+ player.x+=move*W*.72*dt;player.tilt+=(move-player.tilt)*Math.min(1,dt*8);
+ player.x=Math.max(roadLeft()+player.w*.65,Math.min(roadRight()-player.w*.65,player.x));
+ const travel=(speed*45+35)*dt;roadOffset+=travel;distance+=travel/12000;score+=travel*.055;
+ spawnTimer-=dt;if(spawnTimer<=0){spawnTraffic();spawnTimer=Math.max(.48,1.15-speed*.045)*rand(.75,1.25)}
+ pickupTimer-=dt;if(pickupTimer<=0){spawnPickup();pickupTimer=rand(2.1,3.6)}
+ for(let i=traffic.length-1;i>=0;i--){
+  const c=traffic[i];c.y+=travel*(.82+speed*.035);
+  const dx=Math.abs(c.x-player.x),dy=Math.abs(c.y-player.y);
+  if(dx<(player.w+c.w||player.w)*.43 && dy<(player.h+c.h||player.h)*.38){
+   hp-=28;burst(player.x,player.y,'#fb923c');traffic.splice(i,1);speed*=.55;
+   if(hp<=0){hp=0;endGame();return}
+  }else if(!c.passed&&c.y>player.y+player.h*.5){
+   c.passed=true;
+   if(dx<player.w*1.25){nearMiss++;score+=100;nitro=Math.min(100,nitro+12);burst(player.x,player.y,'#22d3ee')}
+  }
+  if(c.y>H+player.h)traffic.splice(i,1);
+ }
+ for(let i=pickups.length-1;i>=0;i--){
+  const p=pickups[i];p.y+=travel;
+  if(Math.abs(p.x-player.x)<player.w*.65&&Math.abs(p.y-player.y)<player.h*.6){
+   if(p.type==='coin')score+=150;else if(p.type==='nitro')nitro=Math.min(100,nitro+40);else hp=Math.min(100,hp+35);
+   burst(p.x,p.y,p.type==='coin'?'#facc15':'#22d3ee');pickups.splice(i,1);
+  }else if(p.y>H+20)pickups.splice(i,1);
+ }
+ for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.life-=dt*1.8;if(p.life<=0)particles.splice(i,1)}
+ updateHud();
+}
+function frame(t){
+ const dt=Math.min(.035,(t-lastTime)/1000||0);lastTime=t;
+ update(dt);draw();requestAnimationFrame(frame);
+}
+function unlockAudio(){
+ if(muted)return;
+ try{const AC=window.AudioContext||window.webkitAudioContext;if(!audioCtx)audioCtx=new AC();if(audioCtx.state==='suspended')audioCtx.resume()}catch(e){}
+}
+function beep(freq=180,duration=.09){
+ if(muted)return;unlockAudio();if(!audioCtx)return;
+ try{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=freq;o.type='square';g.gain.setValueAtTime(.045,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+duration);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+duration)}catch(e){}
+}
+function setControl(name,on){keys[name]=on;const id={'left':'touch-left','right':'touch-right','brake':'touch-brake','nitro':'touch-nitro'}[name];if(id)$(id).classList.toggle('pressed',on)}
+function releaseAll(){for(const [id,name] of pointers){setControl(name,false)}pointers.clear();for(const name of ['left','right','brake','nitro'])setControl(name,false)}
+function bindTouch(id,name){
+ const el=$(id);
+ el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture?.(e.pointerId);pointers.set(e.pointerId,name);setControl(name,true);});
+ const release=e=>{if(pointers.has(e.pointerId)){pointers.delete(e.pointerId);setControl(name,[...pointers.values()].includes(name))}};
+ el.addEventListener('pointerup',release);el.addEventListener('pointercancel',release);el.addEventListener('lostpointercapture',release);
+}
+bindTouch('touch-left','left');bindTouch('touch-right','right');bindTouch('touch-brake','brake');bindTouch('touch-nitro','nitro');
+const keyMap={'ArrowLeft':'left','KeyQ':'left','ArrowRight':'right','KeyD':'right','ArrowDown':'brake','KeyS':'brake','ArrowUp':'nitro','KeyZ':'nitro','Space':'nitro'};
+window.addEventListener('keydown',e=>{const n=keyMap[e.code];if(n){e.preventDefault();setControl(n,true)}});
+window.addEventListener('keyup',e=>{const n=keyMap[e.code];if(n){e.preventDefault();setControl(n,false)}});
+window.addEventListener('blur',releaseAll);document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseAll()});
+$('btn-start').addEventListener('click',startGame);$('btn-restart').addEventListener('click',startGame);
+$('btn-garage').addEventListener('click',()=>{$('screen-gameover').classList.add('hidden');$('screen-start').classList.remove('hidden');state='start'});
+document.querySelectorAll('.car-option').forEach(btn=>btn.addEventListener('click',()=>{selectedCar=btn.dataset.car;document.querySelectorAll('.car-option').forEach(b=>b.classList.toggle('selected',b===btn));beep(260)}));
+$('btn-mute').addEventListener('click',()=>{muted=!muted;$('mute-icon').textContent=muted?'🔇':'🔊';unlockAudio();beep(440)});
+window.addEventListener('resize',resize);window.addEventListener('orientationchange',()=>setTimeout(resize,150));
+document.addEventListener('contextmenu',e=>e.preventDefault());
+resize();updateHud();requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
